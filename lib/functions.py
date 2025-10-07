@@ -67,6 +67,124 @@ def standardize_dates(df: pd.DataFrame, date_format_map: dict) -> pd.DataFrame:
     return df
 
 
+def show_statistical_test(statistic: float, alpha: float, n: int, distribution: str=["t-student","normal"], alternative: str=["two-sided","lower","greater"]):
+
+    if distribution not in ["t-student","normal"]:
+        raise TypeError("Sorry, only 't-student', and 'normal' distributions are acepted")
+
+    if alternative not in ["two-sided","lower","greater"]:
+        raise TypeError("Sorry, only 'two-sided', 'lower', and 'greated' are acepted valued for the alternative")
+
+    if not isinstance(statistic, float):
+        raise TypeError("Sorry, the data type for the statistic must be float")
+
+    if not isinstance(alpha, float):
+        raise TypeError("Sorry, the data type for alpha must be float")
+
+    if not isinstance(n, int):
+        raise TypeError("Sorry, the data type for n must be int")
+
+    x_values = np.linspace(-3, 3)
+
+    if distribution == "t-student":
+
+        y_values = st.t.pdf(x_values, df=n-1)
+
+        if alternative == "two-sided": # Computing the critical values
+
+            lower_critical_value = st.t.ppf(alpha/2, df=n-1)
+            upper_critical_value = st.t.ppf(1-(alpha/2), df=n-1)
+
+            x_values1 = np.linspace(-3, lower_critical_value)
+            y_values1 = st.t.pdf(x_values1, df=n-1)
+
+            x_values2 = np.linspace(upper_critical_value, 3)
+            y_values2 = st.t.pdf(x_values2, df=n-1)
+
+        elif alternative == "lower":
+
+            critical_value = st.t.ppf(alpha, df=n-1)
+
+            x_values1 = np.linspace(-3, critical_value)
+            y_values1 = st.t.pdf(x_values1, df=n-1)
+
+        elif alternative == "greater":
+
+            critical_value = st.t.ppf(1-alpha, df=n-1)
+
+            x_values2 = np.linspace(critical_value, 3)
+            y_values2 = st.t.pdf(x_values2, df=n-1)
+
+    elif distribution == "normal":
+
+        y_values = st.norm.pdf(x_values)
+
+        if alternative == "two-sided": # Computing the critical values
+
+            lower_critical_value = st.norm.ppf(alpha/2)
+            upper_critical_value = st.norm.ppf(1-(alpha/2))
+
+            x_values1 = np.linspace(-3, lower_critical_value)
+            y_values1 = st.norm.pdf(x_values1)
+
+            x_values2 = np.linspace(upper_critical_value, 3)
+            y_values2 = st.norm.pdf(x_values2)
+
+        elif alternative == "lower":
+
+            critical_value = st.norm.ppf(alpha)
+
+            x_values1 = np.linspace(-3, critical_value)
+            y_values1 = st.norm.pdf(x_values1)
+
+        elif alternative == "greater":
+
+            critical_value = st.norm.ppf(1-alpha)
+
+            x_values2 = np.linspace(critical_value, 3)
+            y_values2 = st.norm.pdf(x_values2)
+
+    df = pd.DataFrame({"x": x_values, "pdf": y_values})
+
+    title = f"{distribution} Probability Density Function"
+
+    fig = px.line(df, x="x", y="pdf", title=title)
+
+    if alternative == "two-sided":
+
+        fig.add_vline(x=lower_critical_value, line_color="red")
+        fig.add_vline(x=upper_critical_value, line_color="red")
+
+        fig.add_annotation(x=lower_critical_value,y=0,text=f"Lower critical value {lower_critical_value: .2f}",xref="x",yref="paper",yanchor="bottom")
+        fig.add_annotation(x=upper_critical_value,y=0,text=f"Upper critical value {upper_critical_value: .2f}",xref="x",yref="paper",yanchor="bottom")
+
+        fig.add_scatter(x=x_values1, y=y_values1,fill='tozeroy', mode='none' , fillcolor='red')
+        fig.add_scatter(x=x_values2, y=y_values2,fill='tozeroy', mode='none' , fillcolor='red')
+
+    elif alternative == "lower":
+
+        fig.add_vline(x=critical_value, line_color="red")
+        fig.add_annotation(x=critical_value,y=0,text=f"Critical value {critical_value: .2f}",xref="x",yref="paper",yanchor="bottom")
+
+        fig.add_scatter(x=x_values1, y=y_values1,fill='tozeroy', mode='none' , fillcolor='red')
+
+    elif alternative == "greater":
+
+        fig.add_vline(x=critical_value, line_color="red")
+        fig.add_annotation(x=critical_value,y=0,text=f"Critical value {critical_value: .2f}",xref="x",yref="paper",yanchor="bottom")
+
+        fig.add_scatter(x=x_values2, y=y_values2,fill='tozeroy', mode='none' , fillcolor='red')
+
+    fig.add_vline(x=statistic)
+    fig.add_annotation(x=statistic,y=0,text=f"Statistic {statistic: .2f}",xref="x",yref="paper",yanchor="bottom")
+
+    fig.update_layout(title_text=f'{distribution} Probability Density Function', title_x=0.5)
+
+    fig.update_layout(showlegend=False)
+
+    fig.show()
+
+
 ## def remove_all_punctuation(df: pd.DataFrame, columns) -> pd.DataFrame:
 #    df[columns] = df[columns].map(lambda x: re.sub(r'[^A-Za-z0-9 ]+', '', x) if isinstance(x, str) else x)
 #    # Lowercase All Categorical/Text Columns and Remove Extra Spaces

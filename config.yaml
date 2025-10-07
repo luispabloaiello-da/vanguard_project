@@ -5,10 +5,11 @@ input_data:
   file4: "../data/raw/df_final_web_data_pt_2.txt"
 
 output_data:
-  file1: "../data/clean/cleaned_data_1.csv"
-  file2: "../data/clean/cleaned_data_2.csv"
-  file3: "../data/clean/cleaned_data_3.csv"
-  file4: "../data/clean/cleaned_data_3.csv"
+  file1: "../data/clean/clean_df_demo.csv"
+  file2: "../data/clean/clean_df_demo_variation.csv"
+  file3: "../data/clean/clean_df_demo_test.csv"
+  file4: "../data/clean/clean_df_demo_control.csv"
+  file5: "../data/clean/clean_df_web_data.csv"
   fig1: "../figures/figure1.jpeg"
   fig2: "../figures/figure2.jpeg"
   fig3: "../figures/figure3.jpeg"
