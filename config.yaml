@@ -10,6 +10,8 @@ output_data:
   file3: "../data/clean/clean_df_demo_test.csv"
   file4: "../data/clean/clean_df_demo_control.csv"
   file5: "../data/clean/clean_df_web_data.csv"
+  file6: "../data/clean/proc_control_clean.csv"
+  file7: "../data/clean/proc_test_clean.csv"
   fig1: "../figures/figure1.jpeg"
   fig2: "../figures/figure2.jpeg"
   fig3: "../figures/figure3.jpeg"
