@@ -104,7 +104,7 @@
 # ================================================================
 # 7. REMOVE INCONSISTENT / IMPOSSIBLE SEQUENCES
 # ================================================================
-# 16. Function _starnger_things(proc_df):
+# 16. Function stranger_things(proc_df):
 #       a. Ensure required reached_* columns exist; create if missing
 #       b. Build rules that mark anomalies (e.g., reached step_2 without step_1)
 #       c. Combine anomaly flags into one mask
@@ -121,7 +121,7 @@
 # 18. wf_control, back_control = compute_back_jumps(w_control)
 # 19. wf2_control = collapse_last_per_step_and_last_confirm(wf_control)
 # 20. proc_control = summarize_processes(wf2_control, back_control)
-# 21. proc_control_clean, proc_control_anomalies = _starnger_things(proc_control)
+# 21. proc_control_clean, proc_control_anomalies = stranger_things(proc_control)
 # 22. kpis_control = kpis_from_processes(proc_control_clean)
 # 23. dropoff_control = step_dropoff_table(proc_control_clean)
 # 24. Display:
@@ -139,7 +139,7 @@
 # 26. wf_test, back_test = compute_back_jumps(w_test)
 # 27. wf2_test = collapse_last_per_step_and_last_confirm(wf_test)
 # 28. proc_test = summarize_processes(wf2_test, back_test)
-# 29. proc_test_clean, proc_test_anomalies = _starnger_things(proc_test)
+# 29. proc_test_clean, proc_test_anomalies = stranger_things(proc_test)
 # 30. kpis_test = kpis_from_processes(proc_test_clean)
 # 31. dropoff_test = step_dropoff_table(proc_test_clean)
 # 32. Display:
