@@ -1,71 +1,178 @@
 # Add all the imports needed by the functions in the project here
 #================================================================
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import yaml
 import datetime as dt
 import re
+import pandas as pd
+import scipy.stats as st
+import numpy as np
+import matplotlib.pyplot as plt
+import plotly.express as px
+import statsmodels.api as sm
+import seaborn as sns
+
+from statsmodels.stats.proportion import proportions_ztest, proportion_confint
+from statsmodels.multivariate.manova import MANOVA
+from scipy import stats
+from scipy.stats import pearsonr, boxcox, chi2_contingency, shapiro, probplot
+from scipy.stats.contingency import association
 #================================================================
 #
 # Library of custom preprocessing functions
 #================================================================
 
-# Renames all columns in the DataFrame to a consistent, standardized format—typically lowercase with underscores replacing spaces or special characters. 
-# This process ensures uniform column naming, which minimizes errors and simplifies referencing columns throughout data cleaning and analysis workflows.
-def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = df.columns.str.strip().str.replace(' ', '_').str.lower()
-    return df
+# ========= KPIs & Drop-off =========
+def kpis_from_processes(proc: pd.DataFrame) -> pd.DataFrame:
+    d = proc.copy()
+    denom = max(1, int(d['reached_start'].sum()))   # who started
 
-# Removes duplicate rows from a DataFrame, retaining the first occurrence. 
-# Useful for ensuring data integrity and preventing double counting in analyses.
-def drop_duplicates(df: pd.DataFrame, column) -> pd.DataFrame: 
-    return df.drop_duplicates(subset=[column])
+    kpis = {
+        'n_processes'          : int(len(d)),
+        'started'              : int(d['reached_start'].sum()),
+        'step1_rate_%'         : 100*d['reached_step_1'].sum()/denom,
+        'step2_rate_%'         : 100*d['reached_step_2'].sum()/denom,
+        'step3_rate_%'         : 100*d['reached_step_3'].sum()/denom,
+        'completion_rate_%'    : 100*d['completed'].sum()/denom,
+        'successful_%'              : 100*(d['outcome'].eq('successful').sum())/denom,
+        'completed_with_errors_%'   : 100*(d['outcome'].eq('completed_with_errors').sum())/denom,
+        'fail%'                     : 100*(d['outcome'].eq('fail').sum())/denom,
+        't_total_avg_min'   : float(np.nanmean(d['t_total'])),
+        # 't_total_median_min'   : float(np.nanmedian(d['t_total'])),
+        't_step1_avg_min'   : float(np.nanmean(d['t_start_step1'])),
+        # 't_step1_median_min'   : float(np.nanmedian(d['t_start_step1'])),
+        't_step2_avg_min'   : float(np.nanmean(d['t_step1_step2'])),
+        # 't_step2_median_min'   : float(np.nanmedian(d['t_step1_step2'])),
+        't_step3_avg_min'   : float(np.nanmean(d['t_step2_step3'])),
+        # 't_step3_median_min'   : float(np.nanmedian(d['t_step2_step3'])),
+        't_conf_avg_min'    : float(np.nanmean(d['t_step3_conf'])),
+        # 't_conf_median_min'    : float(np.nanmedian(d['t_step3_conf'])),
+        'n_back_jumps'       : int(d['n_back_jumps'].sum()),
+        'avg_back_jumps'       : float(d['n_back_jumps'].mean())
+    }
+    return pd.DataFrame([kpis])
 
-# Concatenates a list of DataFrames into a single DataFrame, stacking them vertically (row-wise). 
-# Essential for merging datasets from similar sources or monthly data splits.
-def concat_dataframes(left_df, right_df):
-	return pd.concat([left_df,right_df], ignore_index = True)
+#
 
-# Removes all punctuation symbols from a given string. 
-# Often used during text preprocessing to standardize and clean up textual data for analysis or NLP.
-def remove_all_punctuation(df: pd.DataFrame, columns) -> pd.DataFrame:
-    # Replace word/word and word-word with space between words
-    pattern_slash = r'\b(\w+)(\-|\/)(\w+)\b'
-    for col in columns:
-        # Replace word/word and word-word
-        df[col] = df[col].apply(lambda x: re.sub(pattern_slash, r'\1 \2', x) if isinstance(x, str) else x)
-        # Lowercase, remove extra spaces
-        df[col] = df[col].str.lower().str.strip().str.replace(r'\s+', ' ', regex=True)
-    
-    # Remove remaining punctuation (keep only letters, numbers, spaces) --> Outside the for loop
-    df[columns] = df[columns].map(lambda x: re.sub(r'[^A-Za-z0-9 ]+', '', x) if isinstance(x, str) else x)
-    return df
+def step_dropoff_table(proc: pd.DataFrame) -> pd.DataFrame:
+    d = proc.copy()
+    rows = [
+        ("start→step_1", int(d['reached_start'].sum()),   int(d['reached_step_1'].sum())),
+        ("step_1→step_2", int(d['reached_step_1'].sum()), int(d['reached_step_2'].sum())),
+        ("step_2→step_3", int(d['reached_step_2'].sum()), int(d['reached_step_3'].sum())),
+        ("step_3→confirm", int(d['reached_step_3'].sum()), int(d['completed'].sum())),
+    ]
+    out = pd.DataFrame(rows, columns=['from_to','n_from','n_to'])
+    out['conv_rate_%'] = 100 * out['n_to'] / out['n_from'].replace({0:np.nan})
+    out['conv_rate_%'] = out['conv_rate_%'].fillna(0.0)
+    out['dropoff_%'] = 100 - out['conv_rate_%']
+    return out
 
-# Drops specified columns from a DataFrame, helping reduce dimensionality and focus on relevant variables for analysis
-def drop_irrelevant_columns(df: pd.DataFrame, columns) -> pd.DataFrame:
-    df_drop_cols = df.drop(columns=columns, axis=1, errors="ignore")
-    return df_drop_cols
+## PROPORTION TESTS
 
-# Flters a DataFrame to keep only rows where the specified column contains a match to the provided regex pattern (case-insensitive).
-# Returns a new DataFrame with matching rows, lowercasing the column before searching.
-def filter_by_regex_pattern(df: pd.DataFrame, column, regex_pattern: str) -> pd.DataFrame:
-    df[column] = df[column].str.lower()
-    mask = df[column].str.contains(regex_pattern, flags=re.IGNORECASE, na=False, regex=True)
-    return df[mask].copy().reset_index(drop=True)
+def two_proportion_ztest(x1, n1, x2, n2, *, alternative='larger', diff0=0.05, alpha=0.05):
+    """
+    One-sided two-proportion z-test (TEST vs CONTROL).
 
-# Converts specified columns to pandas `datetime` objects. 
-# Facilitates time-series analysis, filtering, and date-based grouping.
-def standardize_dates(df: pd.DataFrame, date_format_map: dict) -> pd.DataFrame:
-    for col, fmt in date_format_map.items():
-        # Try strict format first
-        try:
-            df[col] = pd.to_datetime(df[col], format=fmt, errors='coerce')
-        except Exception:
-            # Fallback: try default pandas parsing
-            df[col] = pd.to_datetime(df[col], errors='coerce')
-    return df
+    Parameters
+    ----------
+    x1 : Number of "successes" in TEST (e.g., completed).
+    n1 : Number of trials in TEST (e.g., started).
+    x2 : Number of "successes" in CONTROL.
+    n2 : Number of trials in CONTROL.
+    alternative : {'larger','smaller','two-sided'}, default 'larger'
+        Direction of H1. By convention, p1 is TEST, p2 is CONTROL:
+          - 'larger'  → H1: p1 - p2 > diff0  (TEST > CONTROL)
+          - 'smaller' → H1: p1 - p2 < diff0  (TEST < CONTROL)
+          - 'two-sided' → H1: p1 - p2 ≠ diff0
+    diff0 : float, default 0.05
+        Null difference p1 - p2 under H0 (use 0.0 for no-lift; 0.05 for ≥5pp lift test).
+    alpha : float, default 0.05
+        Significance level for reporting confidence intervals (CIs).
 
+    Returns
+    -------
+    dict with:
+      z_stat, p_value, p_test, p_control, diff, null_diff,
+      ci_test (Wilson), ci_control (Wilson),
+      n_test, x_test, n_control, x_control, alternative
+    """
+    count  = np.array([x1, x2], dtype=float)    # successes
+    nobs   = np.array([n1, n2], dtype=float)    # trials
+    #z = ((p_test - p_ctrl) - 0.05) / np.sqrt( p(1-p) *((1/n1 + (1/n2))))
+    z, p   = proportions_ztest(count, nobs, value=diff0, alternative=alternative)
+    phat1, phat2 = count / nobs
+    # 95% CIs for each proportion (Wilson)
+    ci1 = proportion_confint(count[0], nobs[0], alpha=alpha, method="wilson")
+    ci2 = proportion_confint(count[1], nobs[1], alpha=alpha, method="wilson")
+    return {
+        'z_stat': float(z),
+        'p_value': float(p),
+        'p_test': float(phat1),
+        'p_control': float(phat2),
+        'diff': float(phat1 - phat2),
+        'null_diff': float(diff0),
+        'ci_test': tuple(map(float, ci1)),
+        'ci_control': tuple(map(float, ci2)),
+        'n_test': int(n1), 'x_test': int(x1),
+        'n_control': int(n2), 'x_control': int(x2),
+        'alternative': alternative
+    }
+
+# MEAN TESTS
+
+def welch_t_one_sided(x_test, x_ctrl, *, alternative='less'):
+    """
+    Welch's t-test (one-sided).
+    alternative='less' encodes H1: mean(x_test) < mean(x_ctrl).
+    Returns: {'w_stat': t-statistic, 'p_value': p-value, 'n_test': used N in test, 'n_ctrl': used N in control}
+    """
+
+    # Ensure both inputs are numeric arrays/Series;
+    # non-numeric values are coerced to NaN so they can be ignored by the test.
+    x = pd.to_numeric(x_test, errors='coerce')
+    y = pd.to_numeric(x_ctrl, errors='coerce')
+
+    # Run Welch’s two-sample t-test (does NOT assume equal variances).
+    # nan_policy='omit' drops NaNs; 'alternative' sets the tail:
+    #   'less'   → H1: mean(x) < mean(y)
+    #   'greater'→ H1: mean(x) > mean(y)
+    #   'two-sided' → H1: means are different
+    res = st.ttest_ind(x, y, equal_var=False, nan_policy='omit', alternative=alternative)
+
+    # Package results:
+    # - statistic: the t value
+    # - pvalue: one-sided p-value given 'alternative'
+    # - n_test / n_ctrl: number of non-NaN observations used in each group
+    return {
+        'w_stat': float(res.statistic),
+        'p_value': float(res.pvalue),
+        'n_test': int(x.notna().sum()),
+        'n_ctrl': int(y.notna().sum())
+    }
+
+#
+
+def stratified_completion_tests(T, C, by_col, alpha=0.05):
+    rows = []
+    for level in sorted(set(T[by_col].dropna()) | set(C[by_col].dropna())):
+        Ct = C[C[by_col]==level]; Tt = T[T[by_col]==level]
+        n_c, x_c = int(Ct['reached_start'].sum()), int(Ct['completed'].sum())
+        n_t, x_t = int(Tt['reached_start'].sum()), int(Tt['completed'].sum())
+        if n_c == 0 or n_t == 0: 
+            rows.append({'level':level,'n_test':n_t,'n_ctrl':n_c,'z':np.nan,'p':np.nan,'diff':np.nan}); 
+            continue
+        res = two_proportion_ztest(x_t, n_t, x_c, n_c, diff0=0.5, alternative='larger', alpha=alpha)
+        rows.append({'level':level, 'n_test':res['n_test'], 'n_control':res['n_control'],
+                    'p_test':res['p_test'], 'p_control':res['p_control'], 'diff':res['diff'],
+                    'z_stat':res['z_stat'], 'p_value':res['p_value']})
+    return pd.DataFrame(rows)
+
+#
+
+def decision_line(name, p, alpha=0.05, h1_text="TEST better than CONTROL"):
+    print(f"{name}: p={p:.4g} → " + ("Reject H0; " + h1_text if p < alpha else "Fail to reject H0."))
+
+#
 
 def show_statistical_test(statistic: float, alpha: float, n: int, distribution: str=["t-student","normal"], alternative: str=["two-sided","lower","greater"]):
 
