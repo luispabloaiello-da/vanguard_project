@@ -1,66 +1,62 @@
-1. Dataset Exploration & Initial Data Cleaning
+# Vanguard CX Funnel A/B Test — Project README
 
-a. Dataset Overview
-- df_demo: Client demographics (age, gender, tenure, balance, etc.)
-- df_exp_clients: A/B test group assignment (Test/Control/NaN)
-- df_web_data_pt_1 & pt_2: Digital footprint (web steps & timestamps, to be merged)
+## Overview
+This repository evaluates whether a redesigned web UI (Test) improves client completion of a 5‑step funnel relative to the legacy UI (Control). It includes data preparation, KPI computation, outlier handling, and hypothesis testing with a +5 percentage‑point cost‑effectiveness threshold.
 
-b. Data Cleaning
-Check for:
+## Repository Structure
+.
+├── _main_.ipynb                        # Orchestration & initial EDA
+├── demographic_analysis_viz.ipynb      # Group balance & demographics
+├── vanguard_funnel_kpis_.ipynb         # KPI pipeline per cohort (control/test)
+├── vanguard_funnel_outliers_viz.ipynb # Outlier viz & filtered datasets
+├── hypotesis_testing.ipynb             # Statistical tests & decisions
+├── analysis_web_data_control.ipynb     # (optional) cohort-specific analysis
+├── analysis_web_data_test.ipynb        # (optional) cohort-specific analysis
+├── functions.py                        # Helper utilities (z-tests, Welch, KPIs, etc.)
+├── config.yaml                         # Paths for inputs/outputs/figures
+└── figures/                            # Saved charts
 
-- Missing values
-- Duplicates
-- Inconsistent or unexpected values (e.g., 'gendr' has 'U', 'X', nulls).
-- Mismatches between client lists (e.g., experiment clients not in demo data)
+## Data Inputs
+- df_final_demo.txt: demographics (age, tenure, gender, accounts, balances, logins, calls)
+- df_final_experiment_clients.txt: treatment/control assignment
+- df_final_web_data_pt_1.txt, df_final_web_data_pt_2.txt: event logs (process_step, date_time, ids)
 
-c. Merge Datasets
-- Merge df_web_data_pt_1 and df_web_data_pt_2 into a single df_web_data.
-- For later analysis, you’ll need to join client demographic data with experiment assignment and web activity.
+> Paths are configured in config.yaml under paths:. Update if needed.
 
-2. Client Demographics Analysis
+## KPIs
+- Completion rate: % of sessions reaching confirm out of those that reached start.
+- Step conversion/drop-off: rates between adjacent steps.
+- Error rate: back-jumps (later → earlier step) detected per session.
+- Time KPIs: minutes per hop and total (t_total).
+- Outcome mix: % successful / completed_with_errors / fail.
 
-a. Who Are the Primary Clients?
+## Statistical Tests
+- Completion (Test vs Control): one-sided 2‑proportion z-test (H1: Test > Control).
+- Cost-effectiveness threshold: 2‑proportion z with diff0=0.05 (H1: Test − Control > 5 pp).
+- Error rate: one-sided 2‑proportion z (H1: Test < Control).
+- Time to complete: Welch’s t (one-sided; H1: Test faster). If non-normal, also report Mann–Whitney.
 
-Use plots and stats to answer:
+## How to Run
+1) _main_.ipynb
+2) vanguard_funnel_kpis_.ipynb
+3) vanguard_funnel_outliers_viz.ipynb
+4) demographic_analysis_viz.ipynb
+5) hypotesis_testing.ipynb
 
-Age Distribution:
-- Already explored: mean ≈ 46.4, median ≈ 47, mode ≈ 58.5, SD ≈ 15.6 (Clients are typically middle-aged, but with a wide spread)
-- Quartiles: Q1 (youngest) to Q4 (oldest), each ≈ 17–18k clients
-- Plot: Histogram and boxplot of age (already done)
-Gender Distribution:
-- Unique values: ['U', 'M', 'F', NaN, 'X']
-- Frequency count for each gender code (use df_demo['gendr'].value_counts(dropna=False))
-Tenure:
-- Distribution of clnt_tenure_yr and clnt_tenure_mnth (new vs. long-standing)
-- Plot: Histogram or boxplot of tenure in years
-Other variables: Number of accounts, balances, logons/calls (can give extra behavioral context)
+## Outputs
+- Cleaned/aggregated CSVs: proc_control_clean.csv, proc_test_clean.csv, anomalies and no‑outlier variants.
+- Funnel & KPI figures in figures/.
+- Final hypothesis test cells with z/t statistics, p-values, effect sizes, and decisions.
 
-b. Age & Tenure Relationship
-- Cross-tab age quantiles with tenure quantiles (Are younger clients newer? Are older clients more tenured?)
-- Plot: Scatter or heatmap (age vs. tenure)
-- Calculate correlation between age and tenure
+## Assumptions & Limitations
+- Random assignment to Test/Control; balance validated in demographic_analysis_viz.ipynb.
+- Time features may be skewed; medians and IQR reported in addition to means.
+- Only pseudonymous IDs are processed; no raw PII persisted.
 
-c. Are They Younger/Older, New/Long-standing?
-- Summarize the findings from above:
--- Are most clients in the middle/upper age quartiles?
--- What is their median tenure?
--- Are new clients (low tenure) mostly younger/older than average?
+## Reproducibility
+- Helpers in functions.py; parameters in config.yaml/notebook constants.
+- Anomalies are quarantined in dedicated CSVs with reasons for exclusion.
 
-3. Client Behavior Analysis
-
-Beyond the demographics, look for:
-
-Engagement:
-- Distribution of logons and calls in last 6 months
-- Are more engaged clients (more logons/calls) older/younger, or new/long-standing?
-Balance:
-- Are higher-balance clients more likely to be older/long-standing?
-- Plot: Balance by age and tenure
-
-4. Recommended Outputs & Visuals
-
-- Age and tenure histograms/boxplots
-- Gender distribution bar chart
-- Cross-tab or heatmap: Age vs. Tenure
-- Table: Summary statistics for age, tenure, engagement, balance
-- Brief markdown summary for each plot/table
+## Next Steps
+- Add device/channel stratification and post-hoc FDR control across secondary tests.
+- Package pipeline as a CLI/notebook-agnostic script; schedule on Airflow or Prefect.

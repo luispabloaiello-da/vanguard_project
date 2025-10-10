@@ -1,0 +1,61 @@
+lets use the following logic to improve the function summarize_processes to avoid negative values:
+
+Examples:
+process sequence: start(0) → step_1(1) → step_2(2) → step_1(1) → step_2(2) → step_3(3)
+- fail process = didn't reached confirm(4)
+- step backs = 1 -> step_2(2) → step_1(1)
+complete sequence = when multiple step_1(1) &/| step_2(2), drop all except last one.
+
+- to compute times in this case we can drop the first step_1(1) → step_2(2) and compute the time from start(0) → step_1(1) as the total time between start(0) and the second step_1(1) = start(0) → step_1(1) → step_2(2) → step_1(1), 
+therefore the total time spent from start(0) to reach step_1(1) will be the subtraction of the time of the second  step_1(1) - start(0) 
+
+process sequence: step_3(3) → step_2(2) → step_3(3) → confirm(4) → start(0) → step_1(1)
+- Anomaly process = funnel sequential process cannot start on step_3(3)
+- step backs = skipp
+- complte sequence = skipp
+
+process sequence: step_3(3) → confirm(4)
+- Anomaly process = funnel sequential process cannot start on step_3(3)
+- step backs = skipp
+- complte sequence = skipp
+
+process sequence: step_2(2) → step_3(3) → confirm(4)
+- Anomaly process = funnel sequential process cannot start on step_2(2)
+- step backs = skipp
+- complte sequence = skipp
+
+process sequence: start(0) → step_1(1) → step_1(1) → step_2(2)  → step_3(3) → step_1(1) → step_1(1) → step_2(2) → step_1(1)
+- fail process = didn't reached confirm(4)
+- step backs = 2 -> step_3(3)→ step_1(1) | step_2(2) → step_1(1)
+- complte sequence = when multiple step_1(1), drop all except last
+
+process sequence: start(0) → start(0) → start(0) → step_1(1) → step_2(2) → step_1(1) → step_2(2) → step_3(3)
+- fail process = didn't reached confirm(4)
+- step backs = 1 -> step_2(2) → step_1(1)
+- complete sequence = when multiple start(0), drop all except first one.
+
+process sequence: start(0) → step_1(1) → step_2(2) → step_3(3) → step_2(2) → step_3(3) → step_2(2) → step_3(3) → step_2(2) → step_3(3) → start(0) → step_1(1) → step_2(2) → step_3(3) → confirm(4) → confirm(4) → confirm(4)
+- process complted with error = reached confirm(4)
+- step backs = 4 -> step_3(3) → step_2(2) | step_3(3) → step_2(2) | step_3(3) → step_2(2) | step_3(3) → start(0) 
+- complete sequence = when multiple confirm(4), drop all except last one.
+
+process sequence: start(0) → start(0) → start(0) → step_1(1) → step_2(2) → step_1(1) → step_2(2) → step_3(3) 
+- fail process = didn't reached confirm(4) - 
+- step backs = 1 -> step_2(2) → step_1(1) 
+- complete sequence = when multiple start(0), drop all except first one. 
+
+The function below keep the last occurrences per step and last confirm and that is correct except if the step is start(0) 
+because in this case we need to keep the first occurrence of the step start(0)
+
+# ========= 3) Last occurrences per step and last confirm =========
+def collapse_last_per_step_and_last_confirm(wf: pd.DataFrame) -> pd.DataFrame:
+    # We remove intermediate confirms per process (leaving only the last one)
+    is_last_confirm = (wf['process_step'].eq('confirm') &
+                       ~wf.duplicated(subset=KEY+['process_step'], keep='last'))
+    drop_mask = wf['process_step'].eq('confirm') & (~is_last_confirm)
+    wf2 = wf.loc[~drop_mask].copy()
+
+    # For completion times we take the **last** occurrence of each step per process
+    wf2 = (wf2.sort_values(KEY + ['process_step','date_time'])
+              .drop_duplicates(subset=KEY+['process_step'], keep='last'))
+    return wf2
