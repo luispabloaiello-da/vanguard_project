@@ -3,12 +3,17 @@
 ## Overview
 This repository evaluates whether a redesigned web UI (Test) improves client completion of a 5‑step funnel relative to the legacy UI (Control). It includes data preparation, KPI computation, outlier handling, and hypothesis testing with a +5 percentage‑point cost‑effectiveness threshold.
 
+## Live Assets
+
+- **Slides (Canva):** https://www.canva.com/design/DAG1X8OYFCo/CqLrqcE1ZaBMi2s_BbKmIw/edit?utm_content=DAG1X8OYFCo&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
+- **Interactive Tableau Dashboard:** https://public.tableau.com/app/profile/luis.pablo.aiello/viz/VanguardCXFunnel-ABResults/Dashboard1?publish=yes
+
 ## Repository Structure
 .
 ├── _main_.ipynb                        # Orchestration & initial EDA
 ├── demographic_analysis_viz.ipynb      # Group balance & demographics
 ├── vanguard_funnel_kpis_.ipynb         # KPI pipeline per cohort (control/test)
-├── vanguard_funnel_outliers_viz.ipynb # Outlier viz & filtered datasets
+├── vanguard_funnel_outliers_viz.ipynb  # Outlier viz & filtered datasets
 ├── hypotesis_testing.ipynb             # Statistical tests & decisions
 ├── analysis_web_data_control.ipynb     # (optional) cohort-specific analysis
 ├── analysis_web_data_test.ipynb        # (optional) cohort-specific analysis

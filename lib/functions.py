@@ -67,9 +67,15 @@ def step_dropoff_table(proc: pd.DataFrame) -> pd.DataFrame:
     out['dropoff_%'] = 100 - out['conv_rate_%']
     return out
 
+def _pretty_p(p: float, threshold: float = 1e-4) -> str:
+    """Return a compact, readable p-value string."""
+    if np.isnan(p):
+        return "p = NaN"
+    return f"< {threshold:.4f}" if p < threshold else f"{p:.4f}"
+
 ## PROPORTION TESTS
 
-def two_proportion_ztest(x1, n1, x2, n2, *, alternative='larger', diff0=0.05, alpha=0.05):
+def two_proportion_ztest(x1, n1, x2, n2, *, alternative='larger', diff0=0.05, alpha=0.05, include_pretty: bool = True):
     """
     One-sided two-proportion z-test (TEST vs CONTROL).
 
@@ -104,7 +110,7 @@ def two_proportion_ztest(x1, n1, x2, n2, *, alternative='larger', diff0=0.05, al
     # 95% CIs for each proportion (Wilson)
     ci1 = proportion_confint(count[0], nobs[0], alpha=alpha, method="wilson")
     ci2 = proportion_confint(count[1], nobs[1], alpha=alpha, method="wilson")
-    return {
+    out = {
         'z_stat': float(z),
         'p_value': float(p),
         'p_test': float(phat1),
@@ -113,14 +119,28 @@ def two_proportion_ztest(x1, n1, x2, n2, *, alternative='larger', diff0=0.05, al
         'null_diff': float(diff0),
         'ci_test': tuple(map(float, ci1)),
         'ci_control': tuple(map(float, ci2)),
-        'n_test': int(n1), 'x_test': int(x1),
-        'n_control': int(n2), 'x_control': int(x2),
+        'n_test': int(n1), 
+        'x_test': int(x1),
+        'n_control': int(n2), 
+        'x_control': int(x2),
         'alternative': alternative
     }
+    
+    if include_pretty:
+        out.update({
+            'p_value_str': _pretty_p(p),
+            'p_test_str':  f"{phat1:.4%}",
+            'p_control_str': f"{phat2:.4%}",
+            'diff_str':    f"{float(phat1 - phat2):+.2%}",
+            'ci_test_str':    f"[{ci1[0]:.2%}, {ci1[1]:.2%}]",
+            'ci_control_str': f"[{ci2[0]:.2%}, {ci2[1]:.2%}]"
+        })
+
+    return out
 
 # MEAN TESTS
 
-def welch_t_one_sided(x_test, x_ctrl, *, alternative='less'):
+def welch_t_one_sided(x_test, x_ctrl, *, alternative='less', include_pretty: bool = True):
     """
     Welch's t-test (one-sided).
     alternative='less' encodes H1: mean(x_test) < mean(x_ctrl).
@@ -143,12 +163,19 @@ def welch_t_one_sided(x_test, x_ctrl, *, alternative='less'):
     # - statistic: the t value
     # - pvalue: one-sided p-value given 'alternative'
     # - n_test / n_ctrl: number of non-NaN observations used in each group
-    return {
+    out = {
         'w_stat': float(res.statistic),
         'p_value': float(res.pvalue),
         'n_test': int(x.notna().sum()),
         'n_ctrl': int(y.notna().sum())
     }
+    
+    if include_pretty:
+        out.update({
+            'p_value_str': _pretty_p(res.pvalue)
+        })
+
+    return out
 
 #
 
@@ -163,8 +190,8 @@ def stratified_completion_tests(T, C, by_col, alpha=0.05):
             continue
         res = two_proportion_ztest(x_t, n_t, x_c, n_c, diff0=0.5, alternative='larger', alpha=alpha)
         rows.append({'level':level, 'n_test':res['n_test'], 'n_control':res['n_control'],
-                    'p_test':res['p_test'], 'p_control':res['p_control'], 'diff':res['diff'],
-                    'z_stat':res['z_stat'], 'p_value':res['p_value']})
+                    'p_test':res['p_test_str'], 'p_control':res['p_control_str'], 'diff':res['diff_str'],
+                    'z_stat':round(res['z_stat'],2), 'p_value':res['p_value_str']})
     return pd.DataFrame(rows)
 
 #
@@ -290,32 +317,3 @@ def show_statistical_test(statistic: float, alpha: float, n: int, distribution: 
     fig.update_layout(showlegend=False)
 
     fig.show()
-
-
-## def remove_all_punctuation(df: pd.DataFrame, columns) -> pd.DataFrame:
-#    df[columns] = df[columns].map(lambda x: re.sub(r'[^A-Za-z0-9 ]+', '', x) if isinstance(x, str) else x)
-#    # Lowercase All Categorical/Text Columns and Remove Extra Spaces
-#    for col in columns:
-#        df[col] = df[col].str.lower().str.strip().str.replace(r'\s+', ' ', regex=True)
-#    return df
-
-## def remove_all_punctuation(df: pd.DataFrame, columns) -> pd.DataFrame:
-#     for col in columns:
-#         df[col] = df[col].apply(
-#             lambda x: re.sub(r'[^\w\s]', ' ', x) if isinstance(x, str) else x)  # Replace \ punctuation with space
-#         df[col] = df[col].apply(lambda x: re.sub(r'\s+', ' ', x) if isinstance(x, str) else x)  # Remove extra spaces
-#         df[col] = df[col].str.lower().str.strip()  # Lowercase & clean spaces
-#     return df
-
-# Converts specified columns to pandas `datetime` objects, handling various string date formats. 
-# Facilitates time-series analysis, filtering, and date-based grouping.
-## def standardize_dates(df: pd.DataFrame, column) -> pd.DataFrame:
-#     df[column] = pd.to_datetime(df[column], format="%d-%b-%Y", errors='coerce') # Convert 'post_until' to datetime (with your format)
-#     df[column] = df[column].dt.strftime('%d-%m-%Y') # Format 'post_until' as string in 'dd-mm-YYYY'
-#     return df
-
-# regex_pattern = r"(sql|tableau|bi|phyton|eda|llm|ai|ml|pandas|NumPy|Agile)"
-# # Apply re.findall to each row in the 'Preferred_Skills' column
-# keyword_matches = df_merged['Preferred_Skills'].apply(lambda x: re.findall(regex_pattern, x, flags=re.IGNORECASE) if isinstance(x, str) else [])
-# # Filter rows where at least one keyword was found
-# df_keywords = df_merged[keyword_matches.apply(lambda matches: len(matches) > 0)].copy().reset_index(drop=True)
