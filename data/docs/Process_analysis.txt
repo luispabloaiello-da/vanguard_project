@@ -1,13 +1,12 @@
-lets use the following logic to improve the function summarize_processes to avoid negative values:
-
 Examples:
+
 process sequence: start(0) → step_1(1) → step_2(2) → step_1(1) → step_2(2) → step_3(3)
 - fail process = didn't reached confirm(4)
 - step backs = 1 -> step_2(2) → step_1(1)
 complete sequence = when multiple step_1(1) &/| step_2(2), drop all except last one.
 
 - to compute times in this case we can drop the first step_1(1) → step_2(2) and compute the time from start(0) → step_1(1) as the total time between start(0) and the second step_1(1) = start(0) → step_1(1) → step_2(2) → step_1(1), 
-therefore the total time spent from start(0) to reach step_1(1) will be the subtraction of the time of the second  step_1(1) - start(0) 
+therefore the total time spent from start(0) to reach step_1(1) will be the subtraction of the time of the second step_1(1) - start(0) 
 
 process sequence: step_3(3) → step_2(2) → step_3(3) → confirm(4) → start(0) → step_1(1)
 - Anomaly process = funnel sequential process cannot start on step_3(3)
@@ -26,8 +25,9 @@ process sequence: step_2(2) → step_3(3) → confirm(4)
 
 process sequence: start(0) → step_1(1) → step_1(1) → step_2(2)  → step_3(3) → step_1(1) → step_1(1) → step_2(2) → step_1(1)
 - fail process = didn't reached confirm(4)
-- step backs = 2 -> step_3(3)→ step_1(1) | step_2(2) → step_1(1)
+- step backs = 2 -> step_3(3) → step_1(1) | step_2(2) → step_1(1)
 - complte sequence = when multiple step_1(1), drop all except last
+- problem: calculatin the time between step_1(1) and step_2(2) will result in negative value since last step_1(1) is after the last step_2(2)
 
 process sequence: start(0) → start(0) → start(0) → step_1(1) → step_2(2) → step_1(1) → step_2(2) → step_3(3)
 - fail process = didn't reached confirm(4)
